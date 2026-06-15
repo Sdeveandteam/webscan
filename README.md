@@ -14,3 +14,8 @@ A lightweight web vulnerability scanner built in Python for security testing aut
 ## Installation
 ```bash
 pip install -r requirements.txt
+## Roadmap
+- [ ] SSL/TLS certificate checker
+- [ ] JSON output format
+- [ ] Subdomain enumeration
+- [ ] Save scan history
