@@ -68,7 +68,8 @@ def brute_directory(url, path, verify_ssl):
                         headers={"User-Agent": "MiniWebScan/1.0"})
         if r.status_code in [200, 301, 302, 403, 401]:
             return (path, r.status_code, len(r.content))
-    except:
+    except requests.exceptions.RequestException:
+        # Mengabaikan error network individual agar proses scan tetap lanjut
         pass
     return None
 
@@ -88,16 +89,21 @@ def main():
 
     verify_ssl = not args.insecure
 
-    console.print(f"[bold cyan]Target:[/bold cyan] {args.url}")
+    # Memastikan URL berakhiran slash agar urljoin tidak memotong path dasar
+    target_url = args.url
+    if not target_url.endswith("/"):
+        target_url += "/"
+
+    console.print(f"[bold cyan]Target:[/bold cyan] {target_url}")
     console.print(f"[bold cyan]SSL Verify:[/bold cyan] {verify_ssl}")
     console.print(f"[bold cyan]Threads:[/bold cyan] {args.threads}\n")
 
     # 1. Security Headers Check
     console.print(Panel("[bold yellow]Phase 1: Security Headers Analysis[/bold yellow]"))
-    found, missing, status, time_taken = check_headers(args.url, verify_ssl)
+    found, missing, status, time_taken = check_headers(target_url, verify_ssl)
 
     if found is not None:
-        table = Table(title=f"Security Headers | Status: {status} | Time: {time_taken}s")
+        table = Table(title=f"Security Headers | Status: {status} | Time: {time_taken:.2f}s")
         table.add_column("Header", style="cyan", width=25)
         table.add_column("Status", style="green", width=10)
         table.add_column("Value", style="white")
@@ -127,19 +133,20 @@ def main():
 
     found_paths = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.threads) as executor:
-        results = executor.map(lambda p: brute_directory(args.url, p, verify_ssl), paths)
+        results = executor.map(lambda p: brute_directory(target_url, p, verify_ssl), paths)
         for res in results:
             if res:
                 found_paths.append(res)
                 color = "green" if res[1] == 200 else "yellow"
-                console.print(f"[{color}][{res[1]}][/color] /{res[0]} - {res[2]} bytes")
+                # Perbaikan Markup Error menggunakan penutup tag yang valid '[/]'
+                console.print(f"[{color}][{res[1]}][/] /{res[0]} - {res[2]} bytes")
 
     # 3. Summary & Save
     console.print(Panel(f"\n[bold green]Scan Complete![/bold green]\nFound {len(found_paths)} accessible paths"))
 
     if args.output:
         with open(args.output, "w") as f:
-            f.write(f"MiniWebScan Results for {args.url}\n")
+            f.write(f"MiniWebScan Results for {target_url}\n")
             f.write("="*50 + "\n")
             for path, code, size in found_paths:
                 f.write(f"[{code}] /{path} - {size} bytes\n")
